@@ -17,7 +17,7 @@ export default function Bills() {
             <div className="grid grid-cols-3 gap-6">
                 {bills.map(b => (
                     <div key={b._id} className="bg-white p-4 rounded shadow">
-                        <img src={`http://localhost:5000${b.image}`} className="h-48 object-cover mb-3" />
+                        <img src={`${b.image}`} className="h-48 object-cover mb-3" />
                         <p><strong>{b.merchant}</strong></p>
                         <p>Amount: ₹{b.amount}</p>
                         <p>Category: {b.category}</p>

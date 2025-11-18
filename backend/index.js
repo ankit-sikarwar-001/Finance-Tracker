@@ -3,26 +3,43 @@ const cors = require("cors");
 const multer = require("multer");
 const { spawn } = require("child_process");
 const mongoose = require("mongoose");
+require("dotenv").config();
 const path = require("path");
-const fs = require("fs");
+// fs and path are no longer needed for local storage
+// const fs = require("fs");
+
+// ** 1. CLOUDINARY SETUP **
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+
+// Configure Cloudinary using environment variables
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✔ Serve uploads folder publicly
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// ❌ Removed: Serving /uploads folder publicly (no longer stored locally)
+// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// ❌ Removed: Ensuring uploads folder exists
+// if (!fs.existsSync("uploads")) {
+//   fs.mkdirSync("uploads");
+// }
 
-// Ensure uploads folder exists
-if (!fs.existsSync("uploads")) {
-  fs.mkdirSync("uploads");
-}
-
-// Multer Storage – used for <input name="receipt" />
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) =>
-    cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "")),
+// ** 2. MULTER CLOUDINARY STORAGE **
+// Multer Storage – replacing diskStorage with CloudinaryStorage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "finance_bills", // Your specified folder on Cloudinary
+    format: async (req, file) => "jpg", // forces all images to jpg
+    public_id: (req, file) =>
+      path.parse(file.originalname).name + "-" + Date.now(),
+  },
 });
 
 const upload = multer({ storage });
@@ -33,17 +50,24 @@ const Expense = require("./Models/Expense");
 // ------------------------------
 // 🔵 OCR UPLOAD ROUTE
 // ------------------------------
-app.post("/api/upload", upload.single("receipt"), (req, res) => {
+app.post("/api/upload", upload.single("receipt"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded" });
   }
 
-  const imagePath = path.join(__dirname, req.file.path);
-  console.log("📄 Uploaded file:", imagePath);
+  // ** CHANGE 1: Accessing Cloudinary URL **
+  // req.file now contains the file information from Cloudinary
+  const imageURL = req.file.path; // This is the public URL from Cloudinary
+  console.log("🖼️ Uploaded to Cloudinary URL:", imageURL);
+
+  // ** CHANGE 2: Pass the public URL to Python script **
+  // Note: Your Python script must now be able to download the image from this URL.
+  // If your OCR service runs on a local machine without internet access, this will fail.
+  // A robust solution would be to pass the image data/buffer, but for a direct URL replacement:
 
   const python = spawn("python", [
     path.join(__dirname, "../ocr-service/ocr.py"),
-    imagePath,
+    imageURL, // Passing the Cloudinary URL instead of local path
   ]);
 
   let ocrOutput = "";
@@ -60,8 +84,8 @@ app.post("/api/upload", upload.single("receipt"), (req, res) => {
     try {
       const result = JSON.parse(ocrOutput);
 
-      // ✔ FIXED — correct public URL for frontend
-      result.image = `/uploads/${req.file.filename}`;
+      // ** CHANGE 3: Store Cloudinary URL in MongoDB **
+      result.image = imageURL; // Store the public Cloudinary URL
 
       const expense = new Expense(result);
       await expense.save();
@@ -88,6 +112,8 @@ app.post("/api/manual", async (req, res) => {
 // ------------------------------
 app.get("/api/expenses", async (req, res) => {
   const data = await Expense.find().sort({ date: -1 });
+  // The 'image' field in 'data' will now contain the Cloudinary URL,
+  // which the frontend can use directly.
   res.json(data);
 });
 
@@ -95,7 +121,7 @@ app.get("/api/expenses", async (req, res) => {
 // 🟠 MONGO CONNECTION
 // ------------------------------
 mongoose
-  .connect("mongodb://localhost:27017/finance")
+  .connect(process.env.DB_URL)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Error:", err));
 

@@ -4,10 +4,44 @@ import sys
 import re
 import json
 from datetime import datetime
+from io import BytesIO
+try:
+    # Prefer stdlib to avoid extra dependency: urllib to fetch remote images
+    import urllib.request as _urlreq
+except Exception:
+    _urlreq = None
 
-path = sys.argv[1]
-image = Image.open(path)
-text = pytesseract.image_to_string(image)
+
+def open_image(path_or_url):
+    """Open a local file path or fetch a remote URL and open as PIL Image."""
+    # Remote URL
+    if isinstance(path_or_url, str) and path_or_url.lower().startswith(("http://", "https://")):
+        if not _urlreq:
+            raise RuntimeError("urllib.request not available to fetch remote images")
+        resp = _urlreq.urlopen(path_or_url)
+        data = resp.read()
+        return Image.open(BytesIO(data))
+    # Local path
+    return Image.open(path_or_url)
+
+
+path = None
+try:
+    path = sys.argv[1]
+except Exception:
+    # will be handled below
+    pass
+
+try:
+    if not path:
+        raise ValueError("No image path provided")
+    image = open_image(path)
+    text = pytesseract.image_to_string(image)
+except Exception as e:
+    # On error, print valid JSON so the caller won't get a JSON parse error.
+    err = {"error": str(e)}
+    print(json.dumps(err))
+    sys.exit(1)
 
 # Try to extract total amount by keywords
 total_patterns = [

@@ -40,7 +40,7 @@ export default function Dashboard() {
     //     date: d,
     //     amount: daily[d],
     // }));
-    // console.log(expenses)
+    console.log(expenses)
 
     return (
         <div className="space-y-10">
@@ -146,7 +146,7 @@ export default function Dashboard() {
                 <div className="grid grid-cols-3 gap-6 mt-4">
                     {expenses.slice(0, 3).map(b => (
                         <div key={b._id} className="shadow rounded-xl overflow-hidden">
-                            <img src={b.image ? `http://localhost:5000${b.image}` : `https://rolibooks.com/wp-content/uploads/2022/09/no-inage.jpg`} className="h-40 w-full object-cover" />
+                            <img src={b.image ? `${b.image}` : `https://rolibooks.com/wp-content/uploads/2022/09/no-inage.jpg`} className="h-40 w-full object-cover" />
                             <div className="p-3">
                                 <p className="font-semibold">{b.merchant}</p>
                                 <p>₹{b.amount}</p>
