@@ -40,7 +40,7 @@ export default function Dashboard() {
     //     date: d,
     //     amount: daily[d],
     // }));
-    console.log(expenses)
+    // console.log(expenses)
 
     return (
         <div className="space-y-10">

@@ -55,7 +55,7 @@ app.post("/api/upload", upload.single("receipt"), async (req, res) => {
     console.log("🖼️ Uploaded →", imageURL);
 
     // Python OCR path
-    const pythonScript = path.join(__dirname, "ocr/ocr.py");
+    const pythonScript = path.join(__dirname, "ocr-service/ocr.py");
 
     const python = spawn("python3", [pythonScript, imageURL]);
 
