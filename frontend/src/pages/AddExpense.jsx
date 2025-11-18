@@ -19,7 +19,7 @@ export default function AddExpense() {
             if (form.merchant == "") throw "name not found ";
             if (form.amount == "") throw "amount can't  be empty";
             if (form.category == "") throw "category is required ";
-            await axios.post("http://localhost:5000/api/manual", form);
+            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/manual`, form);
             toast.success("Expense Added!");
             navigate("/");
         } catch (err) {

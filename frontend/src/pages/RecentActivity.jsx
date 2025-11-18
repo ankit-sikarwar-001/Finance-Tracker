@@ -5,7 +5,7 @@ export default function RecentActivity() {
     const [expenses, setExpenses] = useState([]);
 
     useEffect(() => {
-        axios.get("http://localhost:5000/api/expenses")
+        axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/expenses`)
             .then(res => setExpenses(res.data));
     }, []);
 

@@ -5,7 +5,7 @@ export default function Bills() {
     const [bills, setBills] = useState([]);
 
     useEffect(() => {
-        let resul = axios.get("http://localhost:5000/api/expenses")
+        let resul = axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/expenses`)
         resul.then(res => setBills(res.data));
     }, []);
 

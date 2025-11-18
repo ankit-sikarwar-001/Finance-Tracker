@@ -23,7 +23,7 @@ export default function UploadReceipt() {
         const form = new FormData();
         form.append("receipt", file);
 
-        axios.post("http://localhost:5000/api/upload", form)
+        axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/upload`, form)
             .then(res => {
                 setResult(res.data);
                 setLoading(false);
