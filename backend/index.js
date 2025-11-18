@@ -5,14 +5,11 @@ const { spawn } = require("child_process");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const path = require("path");
-// fs and path are no longer needed for local storage
-// const fs = require("fs");
 
-// ** 1. CLOUDINARY SETUP **
+// CLOUDINARY SETUP
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
-// Configure Cloudinary using environment variables
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -23,20 +20,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ❌ Removed: Serving /uploads folder publicly (no longer stored locally)
-// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-// ❌ Removed: Ensuring uploads folder exists
-// if (!fs.existsSync("uploads")) {
-//   fs.mkdirSync("uploads");
-// }
-
-// ** 2. MULTER CLOUDINARY STORAGE **
-// Multer Storage – replacing diskStorage with CloudinaryStorage
+// MULTER CLOUDINARY STORAGE
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "finance_bills", // Your specified folder on Cloudinary
-    format: async (req, file) => "jpg", // forces all images to jpg
+    folder: "finance_bills",
+    format: async () => "jpg",
     public_id: (req, file) =>
       path.parse(file.originalname).name + "-" + Date.now(),
   },
@@ -55,20 +44,13 @@ app.post("/api/upload", upload.single("receipt"), async (req, res) => {
     return res.status(400).json({ error: "No file uploaded" });
   }
 
-  // ** CHANGE 1: Accessing Cloudinary URL **
-  // req.file now contains the file information from Cloudinary
-  const imageURL = req.file.path; // This is the public URL from Cloudinary
+  const imageURL = req.file.path;
   console.log("🖼️ Uploaded to Cloudinary URL:", imageURL);
 
-  // ** CHANGE 2: Pass the public URL to Python script **
-  // Note: Your Python script must now be able to download the image from this URL.
-  // If your OCR service runs on a local machine without internet access, this will fail.
-  // A robust solution would be to pass the image data/buffer, but for a direct URL replacement:
+  // ✅ UPDATED PATH FOR DEPLOYMENT
+  const pythonPath = path.join(__dirname, "ocr-service/ocr.py");
 
-  const python = spawn("python", [
-    path.join(__dirname, "../ocr-service/ocr.py"),
-    imageURL, // Passing the Cloudinary URL instead of local path
-  ]);
+  const python = spawn("python", [pythonPath, imageURL]);
 
   let ocrOutput = "";
 
@@ -84,8 +66,7 @@ app.post("/api/upload", upload.single("receipt"), async (req, res) => {
     try {
       const result = JSON.parse(ocrOutput);
 
-      // ** CHANGE 3: Store Cloudinary URL in MongoDB **
-      result.image = imageURL; // Store the public Cloudinary URL
+      result.image = imageURL; // store Cloudinary image
 
       const expense = new Expense(result);
       await expense.save();
@@ -112,8 +93,6 @@ app.post("/api/manual", async (req, res) => {
 // ------------------------------
 app.get("/api/expenses", async (req, res) => {
   const data = await Expense.find().sort({ date: -1 });
-  // The 'image' field in 'data' will now contain the Cloudinary URL,
-  // which the frontend can use directly.
   res.json(data);
 });
 
@@ -128,4 +107,4 @@ mongoose
 // ------------------------------
 // 🟢 START SERVER
 // ------------------------------
-app.listen(5000, () => console.log("🚀 Server running on port 5000"));
+app.listen(process.env.PORT || 5000, () => console.log("Server running..."));
