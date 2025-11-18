@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 const path = require("path");
 
-// CLOUDINARY SETUP
+// CLOUDINARY
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
@@ -21,7 +21,7 @@ app.use(
   cors({
     origin: [
       "https://finance-tracker-fawn-five.vercel.app",
-      "http://localhost:5173", // keep for local testing
+      "http://localhost:5173",
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
@@ -29,91 +29,94 @@ app.use(
 );
 app.use(express.json());
 
-// MULTER CLOUDINARY STORAGE
+// MULTER CLOUDINARY
 const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
+  cloudinary,
   params: {
     folder: "finance_bills",
-    format: async () => "jpg",
+    format: () => "jpg",
     public_id: (req, file) =>
       path.parse(file.originalname).name + "-" + Date.now(),
   },
 });
-
 const upload = multer({ storage });
 
-// MongoDB Model
+// MODEL
 const Expense = require("./Models/Expense");
 
-// ------------------------------
-// 🔵 OCR UPLOAD ROUTE
-// ------------------------------
+// ---------------------------
+// 🚀 UPLOAD + OCR ROUTE
+// ---------------------------
 app.post("/api/upload", upload.single("receipt"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const imageURL = req.file.path;
+    console.log("🖼️ Uploaded →", imageURL);
+
+    // Python OCR path
+    const pythonScript = path.join(__dirname, "ocr/ocr.py");
+
+    const python = spawn("python3", [pythonScript, imageURL]);
+
+    let ocrOutput = "";
+
+    python.stdout.on("data", (data) => {
+      ocrOutput += data.toString();
+    });
+
+    python.stderr.on("data", (data) => {
+      console.error("❌ OCR Error:", data.toString());
+    });
+
+    python.on("close", async () => {
+      try {
+        const result = JSON.parse(ocrOutput);
+        result.image = imageURL; // Cloudinary URL
+
+        const expense = new Expense(result);
+        await expense.save();
+
+        res.json(expense);
+      } catch (err) {
+        console.error("❌ Failed Parsing OCR Output");
+        res.status(500).json({ error: "OCR Processing Error" });
+      }
+    });
+  } catch (err) {
+    console.error("❌ Upload Route Failed:", err);
+    res.status(500).json({ error: "Server error" });
   }
-
-  const imageURL = req.file.path;
-  console.log("🖼️ Uploaded to Cloudinary URL:", imageURL);
-
-  // ✅ UPDATED PATH FOR DEPLOYMENT
-  const pythonPath = path.join(__dirname, "ocr-service/ocr.py");
-
-  const python = spawn("python", [pythonPath, imageURL]);
-
-  let ocrOutput = "";
-
-  python.stdout.on("data", (data) => {
-    ocrOutput += data.toString();
-  });
-
-  python.stderr.on("data", (data) => {
-    console.error("❌ Python Error:", data.toString());
-  });
-
-  python.on("close", async () => {
-    try {
-      const result = JSON.parse(ocrOutput);
-
-      result.image = imageURL; // store Cloudinary image
-
-      const expense = new Expense(result);
-      await expense.save();
-
-      res.json(result);
-    } catch (err) {
-      console.error("❌ JSON Parse Error:", err.message);
-      res.status(500).json({ error: "Failed to process OCR output" });
-    }
-  });
 });
 
-// ------------------------------
-// 🟢 MANUAL INSERT
-// ------------------------------
+// ---------------------------
+// ➕ Manual Add
+// ---------------------------
 app.post("/api/manual", async (req, res) => {
   const newExpense = new Expense(req.body);
   await newExpense.save();
-  res.json({ message: "Added Successfully" });
+  res.json(newExpense);
 });
 
-// ------------------------------
-// 🟣 FETCH ALL EXPENSES
-// ------------------------------
+// ---------------------------
+// 📌 Fetch All
+// ---------------------------
 app.get("/api/expenses", async (req, res) => {
   const data = await Expense.find().sort({ date: -1 });
   res.json(data);
 });
 
-// ------------------------------
-// 🟠 MONGO CONNECTION
-// ------------------------------
+// ---------------------------
+// 🟢 MongoDB
+// ---------------------------
 mongoose
   .connect(process.env.DB_URL)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("❌ MongoDB Error:", err));
+  .then(() => console.log("MongoDB Connected"))
+  .catch((err) => console.error("MongoDB Error:", err));
 
-// ------------------------------
-// 🟢 START SERVER
-// ------------------------------
-app.listen(process.env.PORT || 5000, () => console.log("Server running..."));
+// ---------------------------
+// 🚀 Start Server
+// ---------------------------
+app.listen(process.env.PORT || 5000, () =>
+  console.log("Server running on Render...")
+);
